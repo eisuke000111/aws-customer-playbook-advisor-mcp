@@ -1,4 +1,4 @@
-# 1時間でAWSセキュリティアドバイザーMCPサーバーを作ってみた
+# AWSセキュリティアドバイザーMCP：1時間MVP→GitHub API完全統合まで
 
 ## 自己紹介
 - エンジニア
@@ -11,10 +11,11 @@
 
 1. **MCPって何？**
 2. **作ったもの**
-3. **実装の流れ**
-4. **ハマったポイント**
-5. **デモ**
-6. **今後の展開**
+3. **フェーズ1: 1時間MVP実装**
+4. **フェーズ2: GitHub API完全統合**
+5. **技術的なチャレンジ**
+6. **デモ**
+7. **成果と学び**
 
 ---
 
@@ -42,23 +43,27 @@
 
 ## 作ったもの
 
-### AWS Security Advisor MCP
-**AWSセキュリティのベストプラクティスを提供するMCPサーバー**
+### AWS Security Advisor MCP v2.0
+**AWS公式プレイブックフレームワークと統合したリアルタイムセキュリティアドバイザー**
 
-### 機能
-- ✅ AWSセキュリティ基本原則
-- ✅ S3セキュリティガイダンス
-- ✅ IAMベストプラクティス
-- ✅ EC2セキュリティ設定
-- ✅ VPCネットワークセキュリティ
+### 進化の流れ
+- **v1.0 (1時間MVP)**: ハードコーディングされたガイダンス
+- **v2.0 (完全版)**: GitHub API + AWS公式プレイブック統合
+
+### 現在の機能
+- 🔄 **リアルタイムプレイブック取得** (aws-customer-playbook-framework)
+- 🎯 **サービス別予防策抽出** (S3, IAM, EC2, RDS, VPC, SES等)
+- 📚 **インシデント対応プレイブック** (ランサムウェア、侵害対応等)
+- ⚡ **5分キャッシュ** で高速応答
+- 🔍 **インテリジェント検索** でコンテンツ自動抽出
 
 ### 使用例
 ```
 👤「S3のセキュリティを強化したい」
 ↓
-🤖 MCPツール `get_prevention_guidance` を呼び出し
+🤖 GitHub APIでAWS公式プレイブックを取得
 ↓
-📋 S3セキュリティベストプラクティスを返却
+📋 最新の予防策を自動抽出して返却
 ```
 
 ---
@@ -77,7 +82,7 @@
 
 ---
 
-## 実装の流れ（1時間チャレンジ）
+## フェーズ1: 1時間MVP実装
 
 ### 0-15分: プロジェクトセットアップ
 ```bash
@@ -92,17 +97,18 @@ npm install -D typescript @types/node
 
 ### 15-45分: MCPサーバー実装
 ```typescript
-// src/index.ts
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+// src/index.ts - ハードコーディング版
+const SECURITY_GUIDANCE = {
+  general: '基本原則...',
+  s3: 'S3セキュリティ...',
+  iam: 'IAMベストプラクティス...',
+  // ...
+};
 
 const server = new Server({
   name: 'aws-security-advisor',
   version: '1.0.0'
 });
-
-// ツール登録
-server.setRequestHandler(ListToolsRequestSchema, ...);
-server.setRequestHandler(CallToolRequestSchema, ...);
 ```
 
 ### 45-60分: 動作確認・ドキュメント
@@ -110,21 +116,85 @@ server.setRequestHandler(CallToolRequestSchema, ...);
 - README作成
 - 動作テスト
 
+### 結果: ✅ 1時間でMVP完成！
+
 ---
 
-## 技術スタック
+## フェーズ2: GitHub API完全統合
 
-### フロントエンド
-- **Claude Desktop** (MCPクライアント)
+### ⚠️ MVP版の課題
+- **ハードコーディングされた情報**
+- **更新されない古い情報**
+- **AWS公式との乖離リスク**
 
-### バックエンド
-- **Node.js + TypeScript**
-- **MCP SDK** (@modelcontextprotocol/sdk)
-- **stdio通信** (Claude DesktopとMCPサーバー間)
+### 🎯 解決策: AWS公式プレイブックとの統合
+- **データソース**: aws-samples/aws-customer-playbook-framework
+- **プレイブック数**: 20+個の公式セキュリティプレイブック
+- **カバー範囲**: S3, IAM, EC2, RDS, ランサムウェア、暗号化マイニング等
 
-### データソース（MVP版）
-- **ハードコーディング** (1時間制約のため)
-- 将来: AWS公式プレイブックフレームワーク
+### GitHub APIクライアント実装
+```typescript
+class GitHubPlaybookClient {
+  private baseUrl = 'https://api.github.com';
+  private repo = 'aws-samples/aws-customer-playbook-framework';
+  private cache = new Map(); // 5分キャッシュ
+
+  async getPlaybookList(): Promise<string[]> {
+    // /docs ディレクトリから.mdファイル一覧を取得
+  }
+
+  async getPlaybookContent(filename: string): Promise<string> {
+    // Base64デコードでMarkdownコンテンツを取得
+  }
+
+  async searchByServiceName(service: string) {
+    // サービス名でプレイブックを検索
+  }
+
+  extractPreventionGuidance(content: string): string {
+    // 予防策セクションを自動抽出
+  }
+}
+```
+
+---
+
+## 技術的なチャレンジ
+
+### v1.0 → v2.0 での主要な変更
+
+#### 1. アーキテクチャの完全刷新
+```typescript
+// v1.0: ハードコーディング
+const SECURITY_GUIDANCE = {
+  s3: "パブリックアクセスブロック..."
+};
+
+// v2.0: 動的取得
+const content = await githubClient.getPlaybookContent('S3_Public_Access');
+const guidance = githubClient.extractPreventionGuidance(content);
+```
+
+#### 2. インテリジェントコンテンツ抽出
+- **課題**: Markdownから「予防策」セクションを自動判定
+- **解決**: キーワードベース解析 + セクション構造理解
+
+```typescript
+extractPreventionGuidance(content: string): string {
+  // "prevention", "mitigation", "best practices"等を探索
+  // セクション構造を理解して関連部分を抽出
+}
+```
+
+#### 3. サービス名マッピング
+```typescript
+const serviceKeywords: Record<string, string[]> = {
+  's3': ['s3', 'public_access'],
+  'iam': ['iam', 'credentials', 'compromised'],
+  'ransomware': ['ransom'],
+  // ...
+};
+```
 
 ---
 
@@ -166,7 +236,9 @@ const SECURITY_GUIDANCE = {
 
 ## ハマったポイント 🤯
 
-### 1. package.jsonの`bin`セクション
+### フェーズ1（MVP）での課題
+
+#### 1. package.jsonの`bin`セクション
 **問題**: MCPサーバーが実行できない
 ```json
 // ❌ 不足していた
@@ -183,122 +255,171 @@ const SECURITY_GUIDANCE = {
 }
 ```
 
-### 2. Claude Desktop設定ファイル
+#### 2. Claude Desktop設定ファイル
 **混乱**: どっちが正しい？
 - `config.json` (既存の設定ファイル)
 - `claude_desktop_config.json` (MCP用の設定ファイル)
 
 **解決**: 公式ドキュメントでは`claude_desktop_config.json`が推奨
 
-### 3. 絶対パスの必要性
-```json
-// ❌ 相対パスはNG
-"args": ["./dist/index.js"]
+### フェーズ2（GitHub API）での課題
 
-// ✅ 絶対パスが必要
-"args": ["/Users/username/project/dist/index.js"]
+#### 3. GitHub APIレート制限
+**問題**: 頻繁なアクセスで制限に引っかかる
+```typescript
+// ✅ 解決策: キャッシュ機能
+private cache = new Map<string, { content: string; timestamp: number }>();
+private cacheTimeout = 5 * 60 * 1000; // 5分
+```
+
+#### 4. プレイブック構造の多様性
+**問題**: プレイブックごとに異なるMarkdown構造
+```typescript
+// ✅ 解決策: 複数キーワードでの柔軟な検索
+if (line.includes('## Summary') || 
+    line.includes('## 概要') || 
+    line.includes('# Overview')) {
+  // ...
+}
 ```
 
 ---
 
 ## デモ時間 🎬
 
-### 1. Claude Desktop設定確認
-```json
-{
-  "mcpServers": {
-    "aws-security-advisor": {
-      "command": "node",
-      "args": ["/absolute/path/to/dist/index.js"]
-    }
-  }
-}
+### v2.0で利用可能なコマンド
+
+#### 1. プレイブック一覧取得
+```
+👤「利用可能なセキュリティプレイブックを教えて」
+↓
+🤖 list_available_playbooks 実行
+↓
+📋 20+個のプレイブック一覧表示
 ```
 
-### 2. 実際の使用例
-- 「S3のセキュリティ対策を教えて」
-- 「IAMのベストプラクティスは？」
-- 「AWSセキュリティ全般について」
+#### 2. サービス別予防策取得
+```
+👤「S3のセキュリティ対策を教えて」
+↓
+🤖 get_prevention_guidance(service="s3") 実行
+↓
+📋 S3_Public_Access.mdから予防策を自動抽出
+```
 
-### 3. MCPツール呼び出しの様子
-- Claude Desktopでのツール実行
-- 構造化されたガイダンスの表示
+#### 3. インシデント対応プレイブック取得
+```
+👤「ランサムウェア攻撃への対応方法を教えて」
+↓
+🤖 get_aws_playbook(scenario="ransomware") 実行
+↓
+📋 ランサムウェア対応プレイブック全文表示
+```
+
+### リアルタイム更新の威力
+- **常に最新**: AWSが更新すると自動反映
+- **公式情報**: aws-customer-playbook-frameworkから直接取得
+- **網羅性**: 20+のセキュリティシナリオをカバー
 
 ---
 
-## 現在の制限事項
+## 成果と学び
 
-### MVP版の制約
-- ❌ **ハードコーディングされたデータ**
-- ❌ **GitHub APIとの連携なし**
-- ❌ **動的なコンテンツ更新なし**
+### 🏆 達成できたこと
 
-### なぜこの制約？
-- ⏰ **1時間という時間制限**
-- 🎯 **MVPとしての最小機能に集中**
-- 🚀 **動作確認を最優先**
+#### 技術的成果
+- ✅ **1時間でMVP完成** → **GitHub API完全統合**
+- ✅ **ハードコーディング → 動的データ取得**
+- ✅ **20+の公式プレイブック統合**
+- ✅ **インテリジェントコンテンツ抽出**
+- ✅ **5分キャッシュで高速化**
+
+#### ビジネス価値
+- 🎯 **常に最新のセキュリティ情報**
+- 📚 **AWS公式の信頼性**
+- ⚡ **Claude Desktop統合で使いやすさ向上**
+- 🔄 **メンテナンスフリー（自動更新）**
+
+### 📖 技術的な学び
+
+#### MCPプロトコル
+- **Tools**: 外部機能をClaude Desktopに追加
+- **stdio通信**: リアルタイムでデータ交換
+- **Schema定義**: 型安全なパラメータ受け渡し
+
+#### GitHub API活用
+- **Contents API**: リポジトリファイルの動的取得
+- **Base64デコード**: バイナリコンテンツの処理
+- **レート制限対策**: キャッシュとエラーハンドリング
+
+#### コンテンツ解析
+- **Markdown解析**: 構造化データからの情報抽出
+- **セクション検出**: キーワードベースの柔軟な検索
+- **要約生成**: 長文から重要部分を自動抽出
 
 ---
 
 ## 今後の展開
 
-### Phase 2: GitHub API連携
-```typescript
-// AWS公式プレイブックフレームワークから動的取得
-const playbook = await fetchFromGitHub(
-  'aws-samples/aws-customer-playbook-framework'
-);
-```
+### 短期的な改善
+- 🔍 **検索精度の向上** (自然言語処理)
+- 📊 **メトリクス収集** (使用状況分析)
+- 🌐 **多言語対応** (日本語プレイブック)
 
-### Phase 3: 機能拡張
-- 🔍 **より多くのAWSサービス対応**
-- 📊 **インシデント対応ガイダンス**
-- 💾 **キャッシュ機能**
-- 🔄 **自動更新機能**
-
-### Phase 4: コミュニティ
-- 🌟 **オープンソース化**
-- 👥 **コントリビューション受付**
-- 📚 **ドキュメント充実**
-
----
-
-## 学んだこと
-
-### 技術面
-- ✅ **MCPの基本的な仕組み**
-- ✅ **TypeScriptでのMCPサーバー実装**
-- ✅ **Claude Desktopとの連携方法**
-
-### プロジェクト管理
-- ⏰ **時間制約下での優先順位付け**
-- 📋 **MVPスコープの重要性**
-- 🔄 **段階的な機能実装の効果**
-
-### ツール活用
-- 🤖 **Claude Code との協働開発**
-- 📝 **実装計画書の有効性**
-- ✅ **TODO管理の重要性**
+### 長期的なビジョン
+- 🤖 **AI要約機能** (LLMによるコンテンツ要約)
+- 🔗 **他社セキュリティフレームワーク統合**
+- 👥 **コミュニティプレイブック対応**
+- 📱 **マルチプラットフォーム展開**
 
 ---
 
 ## まとめ
 
-### 1時間で実現できたこと
-- ✅ **動作するMCPサーバー**
-- ✅ **Claude Desktopとの連携**
-- ✅ **AWSセキュリティガイダンス提供**
-- ✅ **完全なドキュメント**
+### 🎯 プロジェクトの進化
+```
+MVP (1時間) → 完全版 (GitHub API統合)
+ハードコーディング → 動的データ取得
+静的情報 → リアルタイム更新
+限定機能 → 20+プレイブック対応
+```
 
-### MCPの可能性
-- 🚀 **AIとツールの新しい連携方法**
-- 🔗 **リアルタイムデータアクセス**
-- 🎯 **特定ドメインに特化したAIアシスタント**
+### 💡 MCPの革新性
+- **AI + 外部ツール** の新しい連携パターン
+- **ドメイン特化型AIアシスタント** の実現
+- **リアルタイムデータアクセス** でAIの可能性拡張
 
-### 次のアクション
-1. **GitHub API連携の実装**
-2. **コミュニティフィードバック収集**
-3. **実際の業務での活用**
+### 🚀 実用性の証明
+- **実際に動作**: Claude Desktopで日常使用可能
+- **メンテナンスフリー**: AWS更新時の自動反映
+- **スケーラブル**: 他のセキュリティフレームワークにも応用可能
+
+### 🔮 未来への示唆
+- **AIツールエコシステム** の発展
+- **専門知識のリアルタイム統合**
+- **開発者体験の革新**
+
+---
+
+## 行動喚起 🎪
+
+### あなたも試してみませんか？
+
+1. **リポジトリをクローン**
+   ```bash
+   git clone https://github.com/eisuke000111/aws-customer-playbook-advisor-mcp
+   ```
+
+2. **Claude Desktopで試用**
+   - npm install & build
+   - Claude Desktop設定
+   - 実際のセキュリティ質問で体験
+
+3. **自分のドメインでMCP作成**
+   - 医療 × MCP
+   - 金融 × MCP  
+   - 教育 × MCP
+   - あなたの専門分野 × MCP
 
 ---
 
@@ -314,13 +435,27 @@ const playbook = await fetchFromGitHub(
 
 **ご質問をお待ちしています！**
 
-- MCPについて
-- 実装について
-- AWSセキュリティについて
-- 今後の展開について
+### よくある質問
+
+**Q: 他のクラウドプロバイダーにも対応予定は？**
+A: Azure、GCPのセキュリティフレームワークとの統合も検討中です！
+
+**Q: プライベートなプレイブックも利用できる？**
+A: 企業内のプライベートリポジトリにも対応可能な設計です。
+
+**Q: APIキーは必要？**
+A: 現在は公開リポジトリのみなので不要。プライベート対応時に追加予定。
+
+**Q: どのくらいの頻度で更新される？**
+A: AWSが公式プレイブックを更新すると即座に反映されます（キャッシュは5分）。
 
 ---
 
 **ありがとうございました！** 🙏
 
-*1時間でここまでできるMCPの可能性を一緒に探求しましょう！*
+### 今日のキーメッセージ
+🚀 **MCPでAIの可能性は無限大**  
+🔗 **リアルタイムデータ統合が次世代AI体験を創る**  
+🎯 **あなたの専門分野 × MCP = 新しい価値創造**
+
+*一緒にMCPの未来を創りましょう！*
