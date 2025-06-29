@@ -24,9 +24,11 @@ npm run build
 
 ## Claude Desktop設定
 
+### 方法1: config.json を編集（開発者向け）
+
 1. Claude Desktopの設定ファイルを開きます：
-   - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
-   - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
+   - macOS: `~/Library/Application Support/Claude/config.json`
+   - Windows: `%APPDATA%\Claude\config.json`
 
 2. 以下の設定を追加します：
 
@@ -41,7 +43,21 @@ npm run build
 }
 ```
 
-3. Claude Desktopを再起動します。
+注意: パスは絶対パスで指定してください。例：
+- macOS: `/Users/username/aws-customer-playbook-advisor-mcp/dist/index.js`
+- Windows: `C:\\Users\\username\\aws-customer-playbook-advisor-mcp\\dist\\index.js`
+
+3. Claude Desktopを完全に終了（Cmd+Q または Alt+F4）して再起動します。
+
+### 方法2: 拡張機能としてインストール（将来対応予定）
+
+現在、manifest.jsonファイルを用意していますが、Claude Desktopの拡張機能システムが正式にリリースされ次第対応予定です。
+
+### トラブルシューティング
+
+- Claude Desktopが最新版であることを確認
+- ビルドが完了していることを確認: `npm run build`
+- ログを確認: Claude Desktopのコンソールでエラーメッセージを確認
 
 ## 使用方法
 
