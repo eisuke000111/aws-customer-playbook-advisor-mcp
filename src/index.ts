@@ -6,124 +6,173 @@ import {
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 
-// AWSセキュリティガイダンスをハードコーディング
-const SECURITY_GUIDANCE = {
-  general: `## AWSセキュリティ基本原則
+// GitHub APIクライアント
+class GitHubPlaybookClient {
+  private baseUrl = 'https://api.github.com';
+  private repo = 'aws-samples/aws-customer-playbook-framework';
+  private cache = new Map<string, { content: string; timestamp: number }>();
+  private cacheTimeout = 5 * 60 * 1000; // 5分キャッシュ
 
-1. **最小権限の原則**
-   - IAMポリシーは必要最小限の権限のみ付与
-   - リソースベースのポリシーも同様に制限
+  async getPlaybookList(): Promise<string[]> {
+    try {
+      const response = await fetch(`${this.baseUrl}/repos/${this.repo}/contents/docs`);
+      if (!response.ok) {
+        throw new Error(`GitHub API error: ${response.status}`);
+      }
+      
+      const files = await response.json() as any[];
+      return files
+        .filter(file => file.name.endsWith('.md') && file.name !== 'README.md')
+        .map(file => file.name.replace('.md', ''));
+    } catch (error) {
+      console.error('Error fetching playbook list:', error);
+      return [];
+    }
+  }
 
-2. **多層防御**
-   - 複数のセキュリティレイヤーを実装
-   - 単一障害点を作らない
+  async getPlaybookContent(filename: string): Promise<string> {
+    const cacheKey = `playbook_${filename}`;
+    const cached = this.cache.get(cacheKey);
+    
+    if (cached && Date.now() - cached.timestamp < this.cacheTimeout) {
+      return cached.content;
+    }
 
-3. **データの暗号化**
-   - 保存時の暗号化（EBS、S3、RDS等）
-   - 転送時の暗号化（TLS/SSL）
+    try {
+      const response = await fetch(`${this.baseUrl}/repos/${this.repo}/contents/docs/${filename}.md`);
+      if (!response.ok) {
+        throw new Error(`GitHub API error: ${response.status}`);
+      }
+      
+      const data = await response.json() as any;
+      const content = Buffer.from(data.content, 'base64').toString('utf-8');
+      
+      // キャッシュに保存
+      this.cache.set(cacheKey, { content, timestamp: Date.now() });
+      
+      return content;
+    } catch (error) {
+      console.error(`Error fetching playbook ${filename}:`, error);
+      return '';
+    }
+  }
 
-4. **ログとモニタリング**
-   - CloudTrailでAPI呼び出しを記録
-   - CloudWatchでメトリクスとログを監視
+  async searchPlaybooks(query: string): Promise<{ filename: string; content: string }[]> {
+    const playbooks = await this.getPlaybookList();
+    const results: { filename: string; content: string }[] = [];
+    
+    for (const playbook of playbooks) {
+      if (playbook.toLowerCase().includes(query.toLowerCase())) {
+        const content = await this.getPlaybookContent(playbook);
+        if (content) {
+          results.push({ filename: playbook, content });
+        }
+      }
+    }
+    
+    return results;
+  }
 
-5. **自動化による一貫性**
-   - Infrastructure as Codeで構成管理
-   - AWS Configで継続的なコンプライアンス確認`,
-  
-  s3: `## S3セキュリティベストプラクティス
+  async searchByServiceName(serviceName: string): Promise<{ filename: string; content: string }[]> {
+    const playbooks = await this.getPlaybookList();
+    const results: { filename: string; content: string }[] = [];
+    
+    // サービス名に基づくファイル名フィルタリング
+    const serviceKeywords: Record<string, string[]> = {
+      's3': ['s3', 'public_access'],
+      'iam': ['iam', 'credentials', 'compromised'],
+      'ec2': ['ec2', 'ransom_response_ec2'],
+      'rds': ['rds', 'ransom_response_rds'],
+      'vpc': ['vpc', 'network'],
+      'ses': ['ses'],
+      'sagemaker': ['sagemaker'],
+      'bedrock': ['bedrock'],
+      'ransomware': ['ransom'],
+      'cryptojacking': ['cryptojacking']
+    };
 
-1. **パブリックアクセスのブロック**
-   - バケットレベルでパブリックアクセスブロックを有効化
-   - アカウントレベルでも制限を適用
+    const keywords = serviceKeywords[serviceName.toLowerCase()] || [serviceName.toLowerCase()];
+    
+    for (const playbook of playbooks) {
+      const playbookLower = playbook.toLowerCase();
+      if (keywords.some((keyword: string) => playbookLower.includes(keyword))) {
+        const content = await this.getPlaybookContent(playbook);
+        if (content) {
+          results.push({ filename: playbook, content });
+        }
+      }
+    }
+    
+    return results;
+  }
 
-2. **暗号化の実装**
-   - デフォルト暗号化を有効化（SSE-S3またはSSE-KMS）
-   - バケットポリシーでHTTPS通信を強制
+  extractSummary(content: string): string {
+    const lines = content.split('\n');
+    let summary = '';
+    let inSummary = false;
+    
+    for (const line of lines) {
+      if (line.includes('## Summary') || line.includes('## 概要') || line.includes('# Overview')) {
+        inSummary = true;
+        continue;
+      }
+      if (inSummary && line.startsWith('##') && !line.includes('Summary') && !line.includes('概要')) {
+        break;
+      }
+      if (inSummary && line.trim()) {
+        summary += line + '\n';
+      }
+    }
+    
+    // サマリーが見つからない場合は最初の数行を使用
+    if (!summary.trim()) {
+      const firstLines = lines.slice(0, 10).filter(line => line.trim() && !line.startsWith('#')).slice(0, 3);
+      summary = firstLines.join('\n');
+    }
+    
+    return summary.trim() || content.substring(0, 500) + '...';
+  }
 
-3. **アクセスログの有効化**
-   - S3アクセスログを別バケットに保存
-   - ログバケット自体も適切に保護
+  extractPreventionGuidance(content: string): string {
+    const lines = content.split('\n');
+    let guidance = '';
+    let inPrevention = false;
+    
+    // 予防策に関するセクションを探す
+    for (const line of lines) {
+      if (line.toLowerCase().includes('prevention') || 
+          line.toLowerCase().includes('mitigation') || 
+          line.toLowerCase().includes('best practices') ||
+          line.toLowerCase().includes('security controls') ||
+          line.includes('予防')) {
+        inPrevention = true;
+        guidance += line + '\n';
+        continue;
+      }
+      
+      if (inPrevention && line.startsWith('##') && 
+          !line.toLowerCase().includes('prevention') &&
+          !line.toLowerCase().includes('mitigation') &&
+          !line.toLowerCase().includes('best practices')) {
+        break;
+      }
+      
+      if (inPrevention && line.trim()) {
+        guidance += line + '\n';
+      }
+    }
+    
+    return guidance.trim() || this.extractSummary(content);
+  }
+}
 
-4. **バージョニングとMFA削除**
-   - バージョニングを有効化して誤削除に対応
-   - 重要なバケットはMFA削除を要求
-
-5. **ライフサイクルポリシー**
-   - 古いデータの自動アーカイブ/削除
-   - コスト最適化とセキュリティの両立`,
-  
-  iam: `## IAMセキュリティベストプラクティス
-
-1. **MFA（多要素認証）の有効化**
-   - ルートユーザーは必須
-   - 特権ユーザーにも強く推奨
-
-2. **アクセスキーの管理**
-   - 定期的なローテーション（90日推奨）
-   - 不要なアクセスキーは即座に削除
-
-3. **IAMロールの活用**
-   - EC2インスタンスにはロールを使用
-   - クロスアカウントアクセスもロールで
-
-4. **ポリシーの最小権限化**
-   - 必要な権限のみを付与
-   - ワイルドカード（*）の使用は最小限に
-
-5. **定期的な権限レビュー**
-   - IAM Access Analyzerの活用
-   - 未使用の権限を定期的に削除`,
-  
-  ec2: `## EC2セキュリティベストプラクティス
-
-1. **セキュリティグループの最小化**
-   - 必要なポートのみ開放
-   - ソースIPを可能な限り制限
-
-2. **最新のAMI使用**
-   - 定期的にパッチを適用
-   - カスタムAMIも定期的に更新
-
-3. **Systems Manager Session Manager**
-   - SSHキーの代わりに使用
-   - 監査ログが自動的に記録
-
-4. **IMDSv2の強制**
-   - メタデータサービスの悪用を防止
-   - インスタンスレベルで設定
-
-5. **EBSボリュームの暗号化**
-   - デフォルトで暗号化を有効化
-   - スナップショットも自動的に暗号化`,
-  
-  vpc: `## VPCセキュリティベストプラクティス
-
-1. **プライベートサブネットの活用**
-   - データベース等はプライベートに配置
-   - NATゲートウェイ経由でアウトバウンド
-
-2. **NACLとセキュリティグループ**
-   - NACLでサブネットレベルの制御
-   - セキュリティグループでインスタンスレベル
-
-3. **VPCフローログ**
-   - 全トラフィックを記録
-   - 異常なパターンの検知に活用
-
-4. **VPCエンドポイント**
-   - AWSサービスへのプライベート接続
-   - インターネット経由を回避
-
-5. **複数AZへの展開**
-   - 可用性とセキュリティの向上
-   - 単一障害点の排除`
-};
+const githubClient = new GitHubPlaybookClient();
 
 // MCPサーバーの初期化
 const server = new Server(
   {
     name: 'aws-security-advisor',
-    version: '1.0.0',
+    version: '2.0.0',
   },
   {
     capabilities: {
@@ -137,14 +186,32 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
   return {
     tools: [
       {
+        name: 'get_aws_playbook',
+        description: 'AWS公式プレイブックフレームワークから最新のセキュリティプレイブックを取得します',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            scenario: {
+              type: 'string',
+              description: 'セキュリティシナリオ（例: s3, iam, ransomware, compromised, public_access等）',
+            },
+            playbook_name: {
+              type: 'string',
+              description: '特定のプレイブック名（オプション）',
+            },
+          },
+          required: ['scenario'],
+        },
+      },
+      {
         name: 'get_prevention_guidance',
-        description: 'AWSサービスのセキュリティ予防策を取得します',
+        description: 'AWSサービスの予防的セキュリティガイダンスを公式プレイブックから取得します',
         inputSchema: {
           type: 'object',
           properties: {
             service: {
               type: 'string',
-              description: 'AWSサービス名（例: S3, IAM, EC2, VPC）または "general" で全般的なガイダンス',
+              description: 'AWSサービス名（例: S3, IAM, EC2, VPC, RDS等）',
             },
             question: {
               type: 'string',
@@ -154,55 +221,141 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ['service'],
         },
       },
+      {
+        name: 'list_available_playbooks',
+        description: '利用可能なAWSセキュリティプレイブックの一覧を取得します',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+        },
+      },
     ],
   };
 });
 
 // ツール実行ハンドラー
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
-  if (request.params.name !== 'get_prevention_guidance') {
-    throw new Error(`Unknown tool: ${request.params.name}`);
-  }
+  const { name, arguments: args } = request.params;
 
-  const args = request.params.arguments as { service?: string; question?: string };
-  const serviceName = args.service?.toLowerCase() || 'general';
-  
-  let guidance = SECURITY_GUIDANCE.general;
-  
-  // サービス固有のガイダンスを追加
-  if (serviceName.includes('s3')) {
-    guidance += '\n\n' + SECURITY_GUIDANCE.s3;
-  } else if (serviceName.includes('iam')) {
-    guidance += '\n\n' + SECURITY_GUIDANCE.iam;
-  } else if (serviceName.includes('ec2')) {
-    guidance += '\n\n' + SECURITY_GUIDANCE.ec2;
-  } else if (serviceName.includes('vpc')) {
-    guidance += '\n\n' + SECURITY_GUIDANCE.vpc;
-  } else if (serviceName === 'all' || serviceName === '全部') {
-    // 全サービスのガイダンスを返す
-    guidance = Object.values(SECURITY_GUIDANCE).join('\n\n---\n\n');
+  switch (name) {
+    case 'get_prevention_guidance': {
+      const { service, question } = args as { service?: string; question?: string };
+      
+      if (!service) {
+        return {
+          content: [{ type: 'text', text: 'エラー: serviceパラメータが必要です。' }],
+        };
+      }
+
+      try {
+        const results = await githubClient.searchByServiceName(service);
+        
+        if (results.length === 0) {
+          return {
+            content: [{ type: 'text', text: `サービス "${service}" に関連するプレイブックが見つかりませんでした。利用可能なサービス: S3, IAM, EC2, RDS, VPC, SES, SageMaker, Bedrock` }],
+          };
+        }
+
+        let response = question ? `### 質問: ${question}\n\n` : '';
+        response += `# ${service.toUpperCase()}セキュリティガイダンス\n\n`;
+        
+        for (const result of results) {
+          const preventionGuidance = githubClient.extractPreventionGuidance(result.content);
+          response += `## ${result.filename}\n\n${preventionGuidance}\n\n---\n\n`;
+        }
+        
+        return {
+          content: [{ type: 'text', text: response }],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: 'text', text: `エラー: ガイダンスの取得に失敗しました - ${error}` }],
+        };
+      }
+    }
+
+    case 'list_available_playbooks': {
+      try {
+        const playbooks = await githubClient.getPlaybookList();
+        const playbookList = playbooks.length > 0 
+          ? `## 利用可能なAWSセキュリティプレイブック\n\n${playbooks.map(name => `- ${name}`).join('\n')}\n\n合計: ${playbooks.length}個のプレイブック`
+          : 'プレイブック一覧の取得に失敗しました。';
+        
+        return {
+          content: [{ type: 'text', text: playbookList }],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: 'text', text: `エラー: プレイブック一覧の取得に失敗しました - ${error}` }],
+        };
+      }
+    }
+
+    case 'get_aws_playbook': {
+      const { scenario, playbook_name } = args as { scenario?: string; playbook_name?: string };
+      
+      if (!scenario) {
+        return {
+          content: [{ type: 'text', text: 'エラー: scenarioパラメータが必要です。' }],
+        };
+      }
+
+      try {
+        // 特定のプレイブックが指定されている場合
+        if (playbook_name) {
+          const content = await githubClient.getPlaybookContent(playbook_name);
+          if (content) {
+            return {
+              content: [{ type: 'text', text: `# ${playbook_name}\n\n${content}` }],
+            };
+          } else {
+            return {
+              content: [{ type: 'text', text: `エラー: プレイブック "${playbook_name}" が見つかりませんでした。` }],
+            };
+          }
+        }
+
+        // シナリオベースで検索
+        const results = await githubClient.searchPlaybooks(scenario);
+        
+        if (results.length === 0) {
+          return {
+            content: [{ type: 'text', text: `シナリオ "${scenario}" に関連するプレイブックが見つかりませんでした。` }],
+          };
+        }
+
+        // 最初の結果を返す（複数ある場合は最初のもの）
+        const firstResult = results[0];
+        const summary = githubClient.extractSummary(firstResult.content);
+        
+        let response = `# ${firstResult.filename}\n\n## 概要\n${summary}\n\n`;
+        
+        if (results.length > 1) {
+          response += `## その他の関連プレイブック\n${results.slice(1).map(r => `- ${r.filename}`).join('\n')}\n\n`;
+        }
+        
+        response += `## 詳細コンテンツ\n${firstResult.content}`;
+        
+        return {
+          content: [{ type: 'text', text: response }],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: 'text', text: `エラー: プレイブックの取得に失敗しました - ${error}` }],
+        };
+      }
+    }
+
+    default:
+      throw new Error(`Unknown tool: ${name}`);
   }
-  
-  // 質問が含まれている場合は、それを明示
-  if (args.question) {
-    guidance = `### 質問: ${args.question}\n\n${guidance}`;
-  }
-  
-  return {
-    content: [
-      {
-        type: 'text',
-        text: guidance,
-      },
-    ],
-  };
 });
 
 // サーバーの起動
 async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error('AWS Security Advisor MCP Server started');
+  console.error('AWS Security Advisor MCP Server v2.0 started (GitHub API only)');
 }
 
 main().catch((error) => {
