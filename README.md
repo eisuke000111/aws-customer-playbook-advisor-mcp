@@ -10,9 +10,28 @@ AWSセキュリティのベストプラクティスを提供するMCP（Model Co
 
 ## インストール
 
+### 方法1: uvx での実行（推奨）
+
+```bash
+# 最新版を直接実行
+uvx aws-security-advisor-mcp@latest
+
+# 特定のバージョンを実行
+uvx aws-security-advisor-mcp@1.0.0
+```
+
+### 方法2: npx での実行
+
+```bash
+# 最新版を直接実行
+npx aws-security-advisor-mcp@latest
+```
+
+### 方法3: ローカル開発
+
 ```bash
 # リポジトリのクローン
-git clone https://github.com/eisuke000111/aws-customer-playbook-advisor-mcp.git
+git clone https://github.com/your-org/aws-customer-playbook-advisor-mcp.git
 cd aws-customer-playbook-advisor-mcp
 
 # 依存関係のインストール
@@ -24,13 +43,39 @@ npm run build
 
 ## Claude Desktop設定
 
-### 方法1: config.json を編集（開発者向け）
+### 方法1: uvx を使用（推奨）
 
 1. Claude Desktopの設定ファイルを開きます：
    - macOS: `~/Library/Application Support/Claude/config.json`
    - Windows: `%APPDATA%\Claude\config.json`
 
 2. 以下の設定を追加します：
+
+```json
+{
+  "mcpServers": {
+    "aws-security-advisor": {
+      "command": "uvx",
+      "args": ["aws-security-advisor-mcp@latest"]
+    }
+  }
+}
+```
+
+### 方法2: npx を使用
+
+```json
+{
+  "mcpServers": {
+    "aws-security-advisor": {
+      "command": "npx",
+      "args": ["aws-security-advisor-mcp@latest"]
+    }
+  }
+}
+```
+
+### 方法3: ローカル開発用
 
 ```json
 {
@@ -43,15 +88,9 @@ npm run build
 }
 ```
 
-注意: パスは絶対パスで指定してください。例：
-- macOS: `/Users/username/aws-customer-playbook-advisor-mcp/dist/index.js`
-- Windows: `C:\\Users\\username\\aws-customer-playbook-advisor-mcp\\dist\\index.js`
+注意: パスは絶対パスで指定してください。
 
 3. Claude Desktopを完全に終了（Cmd+Q または Alt+F4）して再起動します。
-
-### 方法2: 拡張機能としてインストール（将来対応予定）
-
-現在、manifest.jsonファイルを用意していますが、Claude Desktopの拡張機能システムが正式にリリースされ次第対応予定です。
 
 ### トラブルシューティング
 

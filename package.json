@@ -1,7 +1,7 @@
 {
   "name": "aws-security-advisor-mcp",
   "version": "1.0.0",
-  "description": "AWS Security Playbook Advisor MCP Server",
+  "description": "AWS Security Playbook Advisor MCP Server (Unofficial)",
   "main": "dist/index.js",
   "bin": {
     "aws-security-advisor-mcp": "./dist/index.js"
@@ -11,23 +11,24 @@
   "scripts": {
     "build": "tsc && chmod +x dist/index.js",
     "start": "node dist/index.js",
-    "start:api": "node dist/api-server.js",
-    "dev": "tsc && node dist/index.js",
-    "dev:api": "tsc && node dist/api-server.js",
     "prepare": "npm run build"
   },
-  "keywords": ["mcp", "aws", "security"],
-  "author": "",
+  "keywords": ["mcp", "aws", "security", "playbook", "advisor", "modelcontextprotocol"],
+  "author": "Fukushima",
   "license": "MIT",
+  "homepage": "https://github.com/eisuke000111/aws-customer-playbook-advisor-mcp",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/eisuke000111/aws-customer-playbook-advisor-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/eisuke000111/aws-customer-playbook-advisor-mcp/issues"
+  },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.0.4",
-    "express": "^4.18.2",
-    "cors": "^2.8.5"
+    "@modelcontextprotocol/sdk": "^1.0.4"
   },
   "devDependencies": {
     "@types/node": "^22.5.5",
-    "@types/express": "^4.17.17",
-    "@types/cors": "^2.8.13",
     "typescript": "^5.6.3"
   }
 }
