@@ -1,0 +1,11 @@
+{
+  "name": "AWS Security Advisor",
+  "version": "1.0.0",
+  "description": "AWS Security Best Practices MCP Server",
+  "author": "eisuke000111",
+  "mcp": {
+    "command": "node",
+    "args": ["dist/index.js"],
+    "env": {}
+  }
+}
